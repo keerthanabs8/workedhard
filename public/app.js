@@ -1,23 +1,4 @@
-// [Client-side code remains unchanged above]
-
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('AgriPulse app initialized');
-    // Load user profile
-    loadProfile();
-    // Initially load dashboard if it's the default page
-    if (currentPage === 'dashboard') {
-        // Set default language
-        changeLanguage();
-    }
-    // Close modal when clicking outside
-    window.onclick = function(event) {
-        const modal = document.getElementById('profileModal');
-        if (event.target === modal) {
-            closeProfile();
-        }
-    };
-    // Global variables
+// Global variables
 let currentPage = 'dashboard';
 
 // Navigation functions
@@ -65,24 +46,54 @@ async function loadPrices() {
         const data = await response.json();
 
         if (data.records && data.records.length > 0) {
+            // Sort records by arrival_date to get most recent first, then take only recent ones
+            const sortedRecords = data.records.sort((a, b) => {
+                const dateA = new Date(a.arrival_date?.split('/').reverse().join('-') || '1970-01-01');
+                const dateB = new Date(b.arrival_date?.split('/').reverse().join('-') || '1970-01-01');
+                return dateB - dateA; // Most recent first
+            });
+
+            // Get today's date for comparison
+            const today = new Date().toLocaleDateString('en-GB');
+            const todayRecords = sortedRecords.filter(record => record.arrival_date === today);
+            const displayRecords = todayRecords.length > 0 ? todayRecords : sortedRecords.slice(0, 15);
+
             let tableHTML = `
+                <div class="market-info" style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(76, 175, 80, 0.1); border-radius: 0.5rem;">
+                    <p style="color: #4ade80; font-weight: 600;">
+                        📅 ${todayRecords.length > 0 ? `Today's Prices (${today})` : `Latest Available Prices`}
+                    </p>
+                    <p style="color: #94a3b8; font-size: 0.9rem;">
+                        ${todayRecords.length > 0 ? `Showing ${todayRecords.length} commodities with today's rates` : `Showing ${displayRecords.length} most recent commodity rates`}
+                    </p>
+                </div>
                 <table class="table">
                     <thead>
                         <tr>
                             <th>Commodity</th>
-                            <th>Market</th>
+                            <th>Market & State</th>
                             <th>Price (₹/Quintal)</th>
+                            <th>Date</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
-            data.records.slice(0, 10).forEach(record => {
+            displayRecords.slice(0, 12).forEach(record => {
+                const isToday = record.arrival_date === today;
+                const rowStyle = isToday ? 'background-color: rgba(76, 175, 80, 0.05);' : '';
+                
                 tableHTML += `
-                    <tr>
-                        <td>${record.commodity || 'N/A'}</td>
-                        <td>${record.market || 'N/A'}</td>
-                        <td>₹${record.modal_price || 'N/A'}</td>
+                    <tr style="${rowStyle}">
+                        <td><strong>${record.commodity || 'N/A'}</strong><br>
+                            <small style="color: #94a3b8;">${record.variety || ''}</small></td>
+                        <td>${record.market || 'N/A'}<br>
+                            <small style="color: #94a3b8;">${record.state || ''}</small></td>
+                        <td><strong>₹${record.modal_price || 'N/A'}</strong><br>
+                            <small style="color: #94a3b8;">Min: ₹${record.min_price || 'N/A'} | Max: ₹${record.max_price || 'N/A'}</small></td>
+                        <td><span style="color: ${isToday ? '#4ade80' : '#94a3b8'}; font-weight: ${isToday ? '600' : 'normal'};">
+                            ${record.arrival_date || 'N/A'}${isToday ? '<br><small>🔥 TODAY</small>' : ''}
+                        </span></td>
                     </tr>
                 `;
             });
@@ -1176,17 +1187,154 @@ function showGuide(guideId) {
 }
 
 
-// Reminders functions
+// Enhanced Reminders functions with real notifications
 let reminders = [];
+let notificationCheckInterval = null;
+
+// Initialize reminders system
+function initReminders() {
+    // Load reminders from localStorage
+    loadRemindersFromStorage();
+    
+    // Request notification permission
+    requestNotificationPermission();
+    
+    // Start checking for due reminders
+    startNotificationCheck();
+    
+    // Render saved reminders
+    renderReminders();
+}
+
+// Request permission for browser notifications
+function requestNotificationPermission() {
+    if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    console.log('Notification permission granted');
+                    showNotification('AgriPulse Reminders', 'Notifications are now enabled! You\'ll receive alerts for your farming reminders.');
+                } else {
+                    console.log('Notification permission denied');
+                }
+            });
+        }
+    }
+}
+
+// Show browser notification
+function showNotification(title, body, icon = '🌾') {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+            body: body,
+            icon: `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">${icon}</text></svg>`,
+            badge: `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌾</text></svg>`,
+            requireInteraction: true,
+            silent: false
+        });
+        
+        // Auto-close after 10 seconds
+        setTimeout(() => notification.close(), 10000);
+        
+        return notification;
+    }
+}
+
+// Start background checking for due reminders
+function startNotificationCheck() {
+    // Clear existing interval
+    if (notificationCheckInterval) {
+        clearInterval(notificationCheckInterval);
+    }
+    
+    // Check every 30 seconds for due reminders
+    notificationCheckInterval = setInterval(() => {
+        checkDueReminders();
+    }, 30000); // 30 seconds
+    
+    // Also check immediately
+    checkDueReminders();
+}
+
+// Check for reminders that are due
+function checkDueReminders() {
+    const now = new Date();
+    
+    reminders.forEach((reminder, index) => {
+        // Create proper datetime from reminder data
+        const reminderDateTime = new Date(reminder.dateTime || `${reminder.date}T${reminder.time || '09:00'}:00`);
+        
+        // Check if reminder time has passed and hasn't been notified
+        if (now >= reminderDateTime && !reminder.notified) {
+            // Mark as notified to prevent duplicate notifications
+            reminder.notified = true;
+            saveRemindersToStorage();
+            
+            // Show notification
+            const activityName = reminder.activity.charAt(0).toUpperCase() + reminder.activity.slice(1);
+            const notificationTitle = `🚨 Farming Reminder Alert!`;
+            const notificationBody = `${activityName} is due now! ${reminder.notes ? 'Notes: ' + reminder.notes : ''}`;
+            
+            showNotification(notificationTitle, notificationBody, '🚜');
+            
+            // Also show visual alert
+            setTimeout(() => {
+                if (confirm(`🌾 Farming Reminder Alert!\n\n${activityName} is due now!\n\nScheduled for: ${reminderDateTime.toLocaleString()}\n\n${reminder.notes ? 'Notes: ' + reminder.notes : ''}\n\nWould you like to mark this reminder as completed?`)) {
+                    deleteReminder(index);
+                }
+            }, 1000);
+        }
+        
+        // Check for overdue reminders (1+ hours overdue)
+        else if (now > reminderDateTime && !reminder.overdueNotified) {
+            const hoursOverdue = Math.floor((now - reminderDateTime) / (1000 * 60 * 60));
+            
+            // Only show overdue notification if it's been more than 1 hour past due time
+            if (hoursOverdue >= 1) {
+                reminder.overdueNotified = true;
+                saveRemindersToStorage();
+                
+                const activityName = reminder.activity.charAt(0).toUpperCase() + reminder.activity.slice(1);
+                const notificationTitle = `⚠️ Overdue Farming Task`;
+                const notificationBody = `${activityName} was due ${hoursOverdue} hour(s) ago. Scheduled for: ${reminderDateTime.toLocaleString()}`;
+                
+                showNotification(notificationTitle, notificationBody, '⚠️');
+            }
+        }
+    });
+}
+
+// Save reminders to localStorage
+function saveRemindersToStorage() {
+    try {
+        localStorage.setItem('agripulse_reminders', JSON.stringify(reminders));
+    } catch (error) {
+        console.error('Failed to save reminders:', error);
+    }
+}
+
+// Load reminders from localStorage
+function loadRemindersFromStorage() {
+    try {
+        const saved = localStorage.getItem('agripulse_reminders');
+        if (saved) {
+            reminders = JSON.parse(saved);
+        }
+    } catch (error) {
+        console.error('Failed to load reminders:', error);
+        reminders = [];
+    }
+}
 
 function addReminder() {
     const reminderActivityInput = document.getElementById('reminderActivity');
     const reminderDateInput = document.getElementById('reminderDate');
     const reminderNotesInput = document.getElementById('reminderNotes');
-    const remindersDisplay = document.getElementById('remindersDisplay');
+    const reminderTimeInput = document.getElementById('reminderTime');
 
     const activity = reminderActivityInput.value;
     const date = reminderDateInput.value;
+    const time = reminderTimeInput ? reminderTimeInput.value : '09:00';
     const notes = reminderNotesInput.value.trim();
 
     if (!activity || !date) {
@@ -1194,13 +1342,41 @@ function addReminder() {
         return;
     }
 
-    reminders.push({ activity: activity, date: date, notes: notes });
+    // Combine date and time
+    const dateTimeString = `${date}T${time}:00`;
+    const reminderDateTime = new Date(dateTimeString);
+    
+    // Check if the date is in the past
+    const now = new Date();
+    if (reminderDateTime < now) {
+        if (!confirm('This reminder is set for a past date/time. Do you want to continue?')) {
+            return;
+        }
+    }
+
+    const newReminder = { 
+        activity: activity, 
+        date: date,
+        time: time,
+        dateTime: dateTimeString,
+        notes: notes,
+        created: new Date().toISOString(),
+        notified: false,
+        overdueNotified: false
+    };
+
+    reminders.push(newReminder);
+    saveRemindersToStorage();
     renderReminders();
 
     // Clear inputs
     reminderActivityInput.value = '';
     reminderDateInput.value = '';
     reminderNotesInput.value = '';
+    if (reminderTimeInput) reminderTimeInput.value = '';
+
+    // Show confirmation
+    showNotification('Reminder Added!', `${activity} reminder set for ${new Date(dateTimeString).toLocaleDateString()}`, '✅');
 }
 
 function renderReminders() {
@@ -1211,16 +1387,40 @@ function renderReminders() {
     }
 
     // Sort reminders by date
-    reminders.sort((a, b) => new Date(a.date) - new Date(b.date));
+    reminders.sort((a, b) => new Date(a.dateTime || a.date) - new Date(b.dateTime || b.date));
 
+    const now = new Date();
     let listHTML = '';
+    
     reminders.forEach((reminder, index) => {
+        const reminderDate = new Date(reminder.dateTime || reminder.date);
+        const isOverdue = reminderDate < now;
+        const isToday = reminderDate.toDateString() === now.toDateString();
+        const isFuture = reminderDate > now;
+        
+        let statusClass = '';
+        let statusIcon = '';
+        
+        if (isOverdue) {
+            statusClass = 'style="background-color: rgba(255, 99, 71, 0.1); border-left: 4px solid #ff6347;"';
+            statusIcon = '⚠️';
+        } else if (isToday) {
+            statusClass = 'style="background-color: rgba(255, 215, 0, 0.1); border-left: 4px solid #ffd700;"';
+            statusIcon = '🔔';
+        } else if (isFuture) {
+            statusClass = 'style="background-color: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e;"';
+            statusIcon = '📅';
+        }
+        
         listHTML += `
-            <div class="result-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="result-item" ${statusClass} style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; border-radius: 0.5rem;">
                 <div>
-                    <p><strong>Activity:</strong> ${reminder.activity.charAt(0).toUpperCase() + reminder.activity.slice(1)}</p>
-                    <p><strong>Date:</strong> ${new Date(reminder.date).toLocaleDateString()}</p>
-                    ${reminder.notes ? `<p><strong>Notes:</strong> ${reminder.notes}</p>` : ''}
+                    <p><strong>${statusIcon} Activity:</strong> ${reminder.activity.charAt(0).toUpperCase() + reminder.activity.slice(1)}</p>
+                    <p><strong>📅 Date:</strong> ${new Date(reminder.dateTime || reminder.date).toLocaleDateString()}</p>
+                    ${reminder.time ? `<p><strong>🕐 Time:</strong> ${reminder.time}</p>` : ''}
+                    ${reminder.notes ? `<p><strong>📝 Notes:</strong> ${reminder.notes}</p>` : ''}
+                    ${isOverdue ? '<p style="color: #ff6347; font-weight: bold;">⚠️ OVERDUE</p>' : ''}
+                    ${isToday ? '<p style="color: #ffd700; font-weight: bold;">🔔 DUE TODAY</p>' : ''}
                 </div>
                 <div>
                     <button class="btn-danger btn-sm" onclick="deleteReminder(${index})">Delete</button>
@@ -1233,7 +1433,9 @@ function renderReminders() {
 
 function deleteReminder(index) {
     reminders.splice(index, 1);
+    saveRemindersToStorage();
     renderReminders();
+    showNotification('Reminder Deleted', 'Reminder has been removed from your list.', '🗑️');
 }
 
 
@@ -1508,6 +1710,8 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('AgriPulse app initialized');
     // Load user profile
     loadProfile();
+    // Initialize reminders system with real notifications
+    initReminders();
     // Initially load dashboard if it's the default page
     if (currentPage === 'dashboard') {
         // Set default language
@@ -1520,6 +1724,5 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target === modal) {
             closeProfile();
         }
-    }
-}); // <-- Fixed: properly closed parenthesis and semicolon
-// [All Node.js/Express/SSE (server) code has been removed from this file.]
+    };
+});
