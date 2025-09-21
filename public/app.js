@@ -432,7 +432,6 @@ const cropData = {
 const translations = {
     en: {
         // English - ISO 639-1: en
-        hello_community: "Hello community",
         ai_powered_partner: "Your AI-powered partner in modern agriculture.",
         quick_links: "Quick Links",
         smart_yield_optimizer: "Smart Yield Optimizer",
@@ -449,7 +448,6 @@ const translations = {
     },
     hi: {
         // Hindi - ISO 639-1: hi, Devanagari script
-        hello_community: "नमस्ते समुदाय",
         ai_powered_partner: "आधुनिक कृषि में आपका AI-संचालित साथी।",
         quick_links: "त्वरित लिंक",
         smart_yield_optimizer: "स्मार्ट उत्पादन अनुकूलक",
@@ -466,7 +464,6 @@ const translations = {
     },
     kn: {
         // Kannada - ISO 639-1: kn, Kannada script
-        hello_community: "ಹ್ಯಾಲೋ ಸಮುದಾಯ",
         ai_powered_partner: "ಆಧುನಿಕ ಕೃಷಿಯಲ್ಲಿ ನಿಮ್ಮ AI-ಚಾಲಿತ ಪಾಲುದಾರ.",
         quick_links: "ತ್ವರಿತ ಲಿಂಕ್‌ಗಳು",
         smart_yield_optimizer: "ಸ್ಮಾರ್ಟ್ ಇಳುವರಿ ಆಪ್ಟಿಮೈಜರ್",
@@ -483,7 +480,6 @@ const translations = {
     },
     te: {
         // Telugu - ISO 639-1: te, Telugu script
-        hello_community: "హలో కమ్యూనిటీ",
         ai_powered_partner: "ఆధునిక వ్యవసాయంలో మీ AI-శక్తితో కూడిన భాగస్వామి.",
         quick_links: "త్వరిత లింకులు",
         smart_yield_optimizer: "స్మార్ట్ దిగుబడి ఆప్టిమైజర్",
@@ -500,7 +496,6 @@ const translations = {
     },
     ta: {
         // Tamil - ISO 639-1: ta, Tamil script
-        hello_community: "வணக்கம் சமூகம்",
         ai_powered_partner: "நவீன விவசாயத்தில் உங்கள் AI-இயங்கும் பங்குதாரர்.",
         quick_links: "விரைவு இணைப்புகள்",
         smart_yield_optimizer: "ஸ்மார்ட் மகசூல் மேம்படுத்தி",
