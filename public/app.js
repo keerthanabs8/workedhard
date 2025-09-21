@@ -1497,4 +1497,63 @@ document.addEventListener('DOMContentLoaded', function() {
             closeProfile();
         }
     }
+}
+// At the top, make sure you have 'const express = require('express');'
+// and 'const app = express();' initialized.
+
+// Array to hold connected clients
+let clients = [];
+
+// Function to send event data to all connected clients
+function sendEventsToAll(newEvent) {
+  // We use .write() to send data and keep the connection open
+  clients.forEach(client => client.response.write(`data: ${JSON.stringify(newEvent)}\n\n`));
+}
+
+// 1. SSE Endpoint
+app.get('/notifications', (request, response) => {
+  // Set headers for SSE
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Connection': 'keep-alive',
+    'Cache-Control': 'no-cache'
+  };
+  response.writeHead(200, headers);
+
+  // Store the new client connection
+  const clientId = Date.now();
+  const newClient = {
+    id: clientId,
+    response // Keep the response object reference
+  };
+  clients.push(newClient);
+  console.log(`SSE Client connected: ID ${clientId}. Total: ${clients.length}`);
+  
+  // Initial message (optional)
+  response.write(`data: ${JSON.stringify({ message: 'Connection established!' })}\n\n`);
+
+  // 2. Handle client disconnection (Crucial cleanup)
+  request.on('close', () => {
+    console.log(`SSE Client disconnected: ID ${clientId}`);
+    // Remove client from the list
+    clients = clients.filter(client => client.id !== clientId);
+  });
 });
+
+
+// --- EXAMPLE: Send a periodic notification ---
+// In a real app, you would call sendEventsToAll() inside a function
+// that handles a new event (e.g., a new user signs up, a DB update).
+
+// This example sends a "Test" notification every 5 seconds.
+setInterval(() => {
+  const newNotification = {
+    timestamp: new Date().toLocaleTimeString(),
+    message: `New real-time update at ${new Date().toLocaleTimeString()}`,
+    type: 'test_notification'
+  };
+  sendEventsToAll(newNotification);
+}, 5000); // Send every 5 seconds
+
+// The rest of your app.js code (like app.listen(...)) goes below this
+// or is already there.                        );
