@@ -1521,6 +1521,5 @@ document.addEventListener('DOMContentLoaded', function() {
             closeProfile();
         }
     }
-});
 }); // <-- Fixed: properly closed parenthesis and semicolon
 // [All Node.js/Express/SSE (server) code has been removed from this file.]
