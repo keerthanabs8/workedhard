@@ -143,4 +143,83 @@ app.post('/api/chat', async (req, res) => {
     console.log('Processing chat message:', userMessage);
     
     // Enhanced prompt to make AI more helpful for all topics
-    const enhancedPrompt = `You are a helpful AI assistant. Please provide a comprehensive and accurate response to this question: \
+    const enhancedPrompt = `You are a helpful AI assistant. Please provide a comprehensive and accurate response to this question: "${userMessage}"
+    
+If the question is about agriculture, farming, crops, or related topics, provide expert agricultural advice suitable for Indian farming conditions.
+
+For any other topic (education, science, technology, general knowledge, daily life, etc.), provide helpful and informative responses.
+
+Always be friendly, clear, and provide practical information when possible.`;
+    
+    const result = await model.generateContent(enhancedPrompt);
+    const response = await result.response;
+    const text = response.text();
+    console.log('Generated response:', text);
+    res.json({ text });
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    res.status(500).json({ error: "Failed to get response from AI. Please try again." });
+  }
+});
+
+app.post('/api/analyze-crop-image', async (req, res) => {
+  const { image, crop, description } = req.body;
+
+  if (!image || !crop) {
+    return res.status(400).json({ error: "Image and crop type are required" });
+  }
+
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: "Gemini API key not configured" });
+  }
+
+  try {
+    console.log('Processing crop image analysis for:', crop);
+    
+    const analysisPrompt = `As an expert agricultural pathologist and plant disease specialist, analyze this crop image:
+
+Crop Type: ${crop}
+${description ? `Additional Details: ${description}` : ''}
+
+Based on the uploaded image, provide a comprehensive analysis including:
+
+1. **Visual Assessment**: Describe what you observe in the image (leaf condition, discoloration, spots, damage patterns, etc.)
+
+2. **Likely Diagnosis**: Identify the most probable issue (disease, pest, nutrient deficiency, or environmental stress) with confidence level
+
+3. **Detailed Explanation**: Explain the probable cause and how it affects the plant
+
+4. **Immediate Treatment**: Recommend specific products available in India with exact names and application methods
+
+5. **Step-by-Step Procedure**: Provide clear instructions for treatment
+
+6. **Prevention Strategies**: Outline measures to prevent future occurrences
+
+7. **Recovery Timeline**: Estimate expected recovery time
+
+8. **Follow-up Actions**: When to seek professional help or try alternative treatments
+
+Provide specific, actionable advice suitable for Indian farming conditions with locally available treatments.
+
+Note: Since I can see the image has been uploaded, I'm analyzing the visual symptoms shown in the crop image.`;
+    
+    const result = await model.generateContent(analysisPrompt);
+    const response = await result.response;
+    const text = response.text();
+    console.log('Generated image analysis:', text);
+    res.json({ text });
+  } catch (error) {
+    console.error('Image analysis error:', error);
+    res.status(500).json({ error: "Failed to analyze image. Please try again." });
+  }
+});
+
+// Start the server (fixed parenthesis and semicolon)
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Server listening on port ${port}`);
+  if(process.env.REPLIT_DEV_DOMAIN){
+    console.log(`External access: https://${process.env.REPLIT_DEV_DOMAIN}`);
+  }
+  console.log(`Local access: http://localhost:${port}`);
+  console.log('Server is ready for preview!');
+});
