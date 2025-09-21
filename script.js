@@ -218,4 +218,55 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log(`External access: https://${process.env.REPLIT_DEV_DOMAIN}`);
   console.log(`Local access: http://localhost:${port}`);
   console.log('Server is ready for preview!');
-});
+}
+// Check if the browser supports SSE
+if (window.EventSource) {
+    // 1. Connect to the SSE endpoint we created in app.js
+    // Since your frontend and backend are likely the same domain, a relative path works.
+    const eventSource = new EventSource('/notifications');
+
+    // Get the element where you want to display notifications
+    // You must add an element with id="notifications-list" in your index.html
+    const notificationList = document.getElementById('notifications-list'); 
+    
+    // Fallback if the element doesn't exist
+    if (!notificationList) {
+        console.error("Missing HTML element: Please add a div or ul with id='notifications-list' to index.html.");
+    }
+
+    // 2. Handle incoming messages (the default 'message' event)
+    eventSource.onmessage = function(event) {
+        try {
+            // event.data is the string sent from the server. Parse it.
+            const data = JSON.parse(event.data);
+            console.log('Received SSE Notification:', data);
+            
+            if (notificationList) {
+                // Create a new list item or div for the notification
+                const newNotification = document.createElement('div');
+                newNotification.className = 'notification-item'; // For CSS styling
+                newNotification.textContent = `[${data.timestamp || 'Now'}] ${data.message}`;
+
+                // Insert the new notification at the top of the list
+                notificationList.prepend(newNotification);
+            }
+        } catch (e) {
+            console.warn("Could not parse incoming data:", event.data);
+        }
+    };
+
+    // 3. Handle connection errors
+    eventSource.onerror = function(error) {
+        console.error("SSE Connection Error:", error);
+        // Optional: Close the connection on error (it will try to reconnect automatically)
+        // eventSource.close();
+    };
+
+    // 4. Handle connection opened (Optional)
+    eventSource.onopen = function() {
+        console.log("SSE Connection to /notifications established.");
+    };
+
+} else {
+    console.warn("Server-Sent Events are not supported by this browser.");
+} );
